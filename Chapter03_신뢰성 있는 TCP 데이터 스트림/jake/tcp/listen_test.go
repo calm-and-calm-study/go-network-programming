@@ -1,10 +1,13 @@
 package tcp
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestListener(t *testing.T) {
@@ -87,4 +90,70 @@ func TestDial(t *testing.T) {
 		t.Logf("unexpected close err : %v", err)
 	}
 	<-done
+}
+
+func DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	d := net.Dialer{
+		Control: func(_, addr string, _ syscall.RawConn) error {
+			return &net.DNSError{
+				Err:         "connection timed out",
+				Name:        addr,
+				Server:      "127.0.0.1",
+				IsTimeout:   true,
+				IsTemporary: true,
+			}
+		},
+		Timeout: timeout,
+	}
+	return d.Dial(network, address)
+}
+
+func TestDialTimeout(t *testing.T) {
+	c, err := DialTimeout("tcp", "10.0.0.1:http", 5*time.Second)
+	if err == nil {
+		c.Close()
+		t.Fatal("connection did not time out")
+	}
+	nErr, ok := err.(net.Error)
+	if !ok {
+		t.Fatal(err)
+	}
+	if !nErr.Timeout() {
+		t.Fatal("connection is not a timed out")
+	}
+}
+
+func TestDialContext(t *testing.T) {
+	// deadline 지정
+	dl := time.Now().Add(5 * time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), dl)
+	defer cancel()
+
+	var d net.Dialer
+	d.Control = func(_, _ string, _ syscall.RawConn) error {
+		// 5초 이상의 timeout 을 강제로 발생시킴
+		time.Sleep(5*time.Second + time.Millisecond)
+		return nil
+	}
+	conn, err := d.DialContext(ctx, "tcp", "10.0.0.0:80")
+	if err == nil {
+		conn.Close()
+		// timeout 이 발생해야하기 때문에 err 가 없으면 테스트 실패
+		t.Fatal("connection did not time out")
+	}
+	nErr, ok := err.(net.Error)
+	if !ok {
+		// err 가 net.Error 유형이 아닌 경우 실패처리
+		t.Error(err)
+	} else {
+		// err 가 타임아웃 발생이 안된거면 테스트 실패
+		if !nErr.Timeout() {
+			t.Errorf("error is not a timeout:%v", err)
+		}
+	}
+	// context 의 에러가 DeadlineExceeded 가 아닌 경우 실패처리
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Errorf("expected deadline exceeded; actual: %v", ctx.Err())
+	}
+	t.Logf("ctx error occur : %s", ctx.Err().Error())
 }

@@ -42,6 +42,7 @@ func TestDeadline(t *testing.T) {
 			t.Errorf("expected timeout error; actual: %v", err)
 		}
 		// 완료 신호 채널로 전송
+		// 첫번째 연결이 종료된 후 완료 신호를 보냄
 		sync <- struct{}{}
 
 		if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
@@ -49,12 +50,14 @@ func TestDeadline(t *testing.T) {
 			return
 		}
 
+		// 두번째 conn 은 아래의 client conn 으로부터 데이터를 받음
 		_, err = conn.Read(buf)
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
+	// client 역할을 하는 conn 연결 구현체
 	conn, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +65,7 @@ func TestDeadline(t *testing.T) {
 	defer conn.Close()
 
 	<-sync
+	// 데이터를 전송해서 두번째 conn.Read 에서는 데이터를 받게 됨
 	_, err = conn.Write([]byte("1"))
 	if err != nil {
 		t.Fatal(err)

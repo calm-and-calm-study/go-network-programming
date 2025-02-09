@@ -19,3 +19,28 @@
 
 <br />
 
+### reflect.DeepEqual
+
+- 두 개의 값을 깊은 비교(Deep Comparision)
+
+- 두 값을 재귀저긍로 비교, 데이터의 순서까지 비교, 값이 모두 동일해야 True 반환
+
+```go
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+func main() {
+	m1 := map[string]int{"a": 1, "b": 2}
+	m2 := map[string]int{"b": 2, "a": 1} // 키 순서 다름
+
+	fmt.Println(reflect.DeepEqual(m1, m2)) // true (맵은 키 순서 무관)
+}
+```
+
+- 신기한 부분은 map 의 키 순서가 달라도 true 반환함 (맵은 순서가 달라도 상관 없어서 같다고 판단함)
+
+

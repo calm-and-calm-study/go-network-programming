@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -46,4 +47,58 @@ func (m Binary) WriteTo(w io.Writer) (int64, error) {
 	o, err := w.Write(m)
 
 	return n + int64(o), err
+}
+
+func (m *Binary) ReadFrom(r io.Reader) (int64, error) {
+	var typ uint8
+
+	// 1Byte Type
+	if err := binary.Read(r, binary.BigEndian, &typ); err != nil {
+		return 0, err
+	}
+
+	var n int64 = 1
+	if typ != BinaryType {
+		return n, errors.New("invalid Binary")
+	}
+
+	var size uint32
+	if err := binary.Read(r, binary.BigEndian, &size); err != nil {
+		return n, err
+	}
+
+	n += 4
+	// 최대 Payload 크기를 부여해서 조건 검사
+	if size > MaxPayloadSize {
+		return n, ErrMaxPayloadSize
+	}
+
+	*m = make([]byte, size)
+	o, err := r.Read(*m)
+	return n + int64(o), err
+}
+
+func decode(r io.Reader) (Payload, error) {
+	var typ uint8
+	if err := binary.Read(r, binary.BigEndian, &typ); err != nil {
+		return nil, err
+	}
+
+	var payload Payload
+
+	switch typ {
+	case BinaryType:
+		payload = &Binary{}
+	case StringType:
+		payload = &Binary{}
+	default:
+		return nil, errors.New("unknown type")
+	}
+
+	_, err := payload.ReadFrom(
+		io.MultiReader(bytes.NewReader([]byte{typ}), r))
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
 }

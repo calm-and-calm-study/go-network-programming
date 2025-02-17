@@ -1,4 +1,4 @@
-package tcp
+package ch03
 
 import (
 	"io"
@@ -7,15 +7,15 @@ import (
 	"time"
 )
 
+// 패킷 캡처 안잡힘
 func TestDeadline(t *testing.T) {
 	sync := make(chan struct{})
-	// 랜덤 port 로 listen
-	listener, err := net.Listen("tcp", "127.0.0.1:")
+
+	listener, err := net.Listen("tcp", "127.0.0.1:7138")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// 고루틴 생성
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -24,55 +24,56 @@ func TestDeadline(t *testing.T) {
 		}
 		defer func() {
 			conn.Close()
-			close(sync)
+			close(sync) // read from sync shouldn't block due to early return
 		}()
 
-		// 5초 타임아웃 지정
-		if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		// connection 연결된 후 데드라인 설정 5초
+		err = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
 			t.Error(err)
 			return
 		}
 
+		//버퍼 생성 후 conn.Read 로 데이터 읽어들임임
 		buf := make([]byte, 1)
-		_, err = conn.Read(buf)
-		// error 타입 변환
+		_, err = conn.Read(buf) // blocked until remote node sends data
 		nErr, ok := err.(net.Error)
-		// timeout 에러가 아닌 경우 에러로그 출력
 		if !ok || !nErr.Timeout() {
 			t.Errorf("expected timeout error; actual: %v", err)
 		}
-		// 완료 신호 채널로 전송
-		// 첫번째 연결이 종료된 후 완료 신호를 보냄
+
 		sync <- struct{}{}
 
-		if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		// conn.Read 상태일 떄떄 데드라인을 뒤로 미룸룸
+		err = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
 			t.Error(err)
 			return
 		}
 
-		// 두번째 conn 은 아래의 client conn 으로부터 데이터를 받음
 		_, err = conn.Read(buf)
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	// client 역할을 하는 conn 연결 구현체
+	// Dial
 	conn, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
 
+	//?
 	<-sync
-	// 데이터를 전송해서 두번째 conn.Read 에서는 데이터를 받게 됨
+	//connection 에서 Write 1 함
 	_, err = conn.Write([]byte("1"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	buf := make([]byte, 1)
-	_, err = conn.Read(buf)
+	_, err = conn.Read(buf) // 원격 노드가 데이터를 보낼 때까지 블로킹됨
 	if err != io.EOF {
 		t.Errorf("expected server termination; actual: %v", err)
 	}

@@ -1,4 +1,4 @@
-package tcp
+package ch03
 
 import (
 	"context"
@@ -8,38 +8,46 @@ import (
 	"time"
 )
 
-const defaultPingInterval = 30 * time.Second
-
+// pi
 func TestPingerAdvanceDeadline(t *testing.T) {
 	done := make(chan struct{})
+
+	//리스너 생성
 	listener, err := net.Listen("tcp", "127.0.0.1:")
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// 현재 시간 받음
 	begin := time.Now()
-	go func() {
-		defer func() {
-			close(done)
-		}()
 
+	// 고루틴
+	go func() {
+		//고루틴 끝나면 done 채널 종료
+		defer func() { close(done) }()
+
+		//리스너에서 Acccep()
 		conn, err := listener.Accept()
 		if err != nil {
 			t.Log(err)
 			return
 		}
 
+		// 취소 가능한 컨텍스트 생성
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
 			cancel()
 			conn.Close()
 		}()
 
+		// Pinger 간격을 조절하는 채널
 		resetTimer := make(chan time.Duration, 1)
-		resetTimer <- time.Second
-		go Pinger(ctx, conn, resetTimer)
+		resetTimer <- time.Second        // Ping 간격 1초
+		go Pinger(ctx, conn, resetTimer) // ping 실행 1초간격
 
-		if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		// 데드라인 현재에서 5초후로 설정
+		err = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
 			t.Error(err)
 			return
 		}
@@ -50,10 +58,12 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 			if err != nil {
 				return
 			}
-			t.Logf("[%s] %s", time.Since(begin).Truncate(time.Second), buf[:n])
+			t.Logf("[%s] %s",
+				time.Since(begin).Truncate(time.Second), buf[:n])
 
 			resetTimer <- 0
-			if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			err = conn.SetDeadline(time.Now().Add(5 * time.Second))
+			if err != nil {
 				t.Error(err)
 				return
 			}
@@ -64,6 +74,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer conn.Close()
 
 	buf := make([]byte, 1024)
 	for i := 0; i < 4; i++ {
@@ -73,8 +84,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 		}
 		t.Logf("[%s] %s", time.Since(begin).Truncate(time.Second), buf[:n])
 	}
-
-	_, err = conn.Write([]byte("PONG!!"))
+	_, err = conn.Write([]byte("PONG!!!"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,47 +102,6 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 	end := time.Since(begin).Truncate(time.Second)
 	t.Logf("[%s] done", end)
 	if end != 9*time.Second {
-		t.Fatalf("expected EOF at 9 seconds; actual : %s", end)
-	}
-}
-
-func Pinger(ctx context.Context, w io.Writer, resetTimer <-chan time.Duration) {
-	var interval time.Duration
-	select {
-	case <-ctx.Done():
-		return
-	case interval = <-resetTimer:
-	default:
-	}
-
-	if interval <= 0 {
-		interval = defaultPingInterval
-	}
-
-	timer := time.NewTimer(interval)
-	defer func() {
-		if !timer.Stop() {
-			<-timer.C
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case newInterval := <-resetTimer:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			if newInterval > 0 {
-				interval = newInterval
-			}
-		case <-timer.C:
-			if _, err := w.Write([]byte("ping")); err != nil {
-				return
-			}
-		}
-
-		_ = timer.Reset(interval)
+		t.Fatalf("expected EOF at 9 seconds; actual %s", end)
 	}
 }

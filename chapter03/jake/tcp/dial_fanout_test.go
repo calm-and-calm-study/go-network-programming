@@ -14,7 +14,7 @@ func TestDialContextCancelFanOut(t *testing.T) {
 		time.Now().Add(10*time.Second),
 	)
 
-	listener, err := net.Listen("tcp", "127.0.0.1:")
+	listener, err := net.Listen("tcp", "127.0.0.1:8092")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
 // WebSocket 서버 핸들러 (Ping/Pong 테스트)
 func pingPongWsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)

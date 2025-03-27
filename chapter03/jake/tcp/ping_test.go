@@ -12,7 +12,7 @@ const defaultPingInterval = 30 * time.Second
 
 func TestPingerAdvanceDeadline(t *testing.T) {
 	done := make(chan struct{})
-	listener, err := net.Listen("tcp", "127.0.0.1:")
+	listener, err := net.Listen("tcp", "127.0.0.1:8090")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -126,10 +126,15 @@ func (q *ReadReq) UnmarshalBinary(p []byte) error {
 }
 
 type Data struct {
-	Block   uint16
+	// block 번호
+	Block uint16
+	// 데이터
+	// os.File -> 파일시스템에서 데이터를 읽을 수 있음
+	// net.Conn -> 다른 네트워크 연결로부터 데이터를 읽을 수 있음
 	Payload io.Reader
 }
 
+// MarshalBinary Data 포인트 리시버 사용, 전송
 func (d *Data) MarshalBinary() ([]byte, error) {
 	b := new(bytes.Buffer)
 	b.Grow(DatagramSize)
@@ -152,26 +157,36 @@ func (d *Data) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 
+	// 데이터를 전송하는 패킷 크기가 516 바이트보다 작으면 마지막 패킷이라는 의미
+	// 서버는 더이상 MarshalBinary 를 호출하지 않음
+	// 16 비트 양의 정수인 블록 번호가 언젠가 오버플로가 될 수 있기 때문에 512 바이트보다 큰 데이터를 전송하면 블록번호는 0이 됨
+	// 클라이언트에서 이러한 데이터를 정상적으로 받을 수 없는 가능성을 대비해야함
 	return b.Bytes(), nil
 }
 
+// UnmarshalBinary Data 포인트 리시버 사용, 수신
 func (d *Data) UnmarshalBinary(p []byte) error {
+	// 데이터 무결성 확인
+	// 기대한 패킷의 크기인지, 나머지 바이트들을 읽어도 되는지
 	if l := len(p); l < 4 || l > DatagramSize {
 		return errors.New("invalid DATA")
 	}
 
 	var opcode OpCode
 
+	// opcode 를 읽고 확인
 	err := binary.Read(bytes.NewReader(p[:2]), binary.BigEndian, &opcode)
 	if err != nil || opcode != OpData {
 		return errors.New("invalid DATA")
 	}
 
+	// 블록번호 확인
 	err = binary.Read(bytes.NewReader(p[2:4]), binary.BigEndian, &d.Block)
 	if err != nil {
 		return errors.New("invalid DATA")
 	}
 
+	// 데이터 확인
 	d.Payload = bytes.NewBuffer(p[4:])
 
 	return nil
@@ -215,6 +230,7 @@ func (a *Ack) UnmarshalBinary(p []byte) error {
 	return binary.Read(r, binary.BigEndian, a) // read block number
 }
 
+// Err error 코드와 메시지를 담음
 type Err struct {
 	Error   ErrCode
 	Message string

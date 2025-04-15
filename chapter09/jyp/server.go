@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/awoodbeck/gnp/ch09/handlers"
-	"github.com/awoodbeck/gnp/ch09/middleware"
+	"./handlers"
+	"./middleware"
 )
 
 var (

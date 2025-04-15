@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/awoodbeck/gnp/ch09/handlers"
+	"./handlers"
 )
 
 func TestSimpleHTTPServer(t *testing.T) {

@@ -6,3 +6,10 @@
 ```
 git clone "https://github.com/caddyserver/caddy.git"
 ```
+
+### Caddy 기능
+- 관리자 포트 2019
+- GET 으로 config 확인 가능
+- POST 요청으로 JSON 데이터에 config 지정함
+
+### Caddy Middleware
